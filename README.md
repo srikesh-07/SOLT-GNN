@@ -1,5 +1,7 @@
 # On Size-Oriented Long-Tailed Graph Classification of Graph Neural Networks
 
+## Run `train.sh` to run experiments for all datasets.
+
 We provide the code (in PyTorch) and datasets for our paper "[On Size-Oriented Long-Tailed Graph Classification of Graph Neural Networks](https://zemin-liu.github.io/papers/SOLT-GNN-WWW-22.pdf)" (SOLT-GNN for short), which is published in WWW-2022.
 
 
