@@ -98,9 +98,9 @@ def train(args, model, patmem, device, graphs, samples, optimizer, optimizer_p, 
             continue
 
         batch_graph_h = [train_graphs[idx]
-                         for idx in selected_idx if train_graphs[idx].nodegroup == 1]
+                         for idx in selected_idx if train_graphs[idx].nodegroup == 2]
         batch_samples_h = [train_samples[idx]
-                           for idx in selected_idx if train_graphs[idx].nodegroup == 1]
+                           for idx in selected_idx if train_graphs[idx].nodegroup == 2]
         batch_graph_t = [train_graphs[idx]
                          for idx in selected_idx if train_graphs[idx].nodegroup == 0]
 
@@ -239,20 +239,35 @@ def pass_data_iteratively(args, model, patmem, graphs, device, minibatch_size=12
 @torch.no_grad()
 def test(args, model, patmem, device, graphs, epoch):
     model.eval()
-
     output, labels = pass_data_iteratively(
         args, model, patmem, graphs, device)
     pred = output.max(1, keepdim=True)[1]
-    mask_t = torch.zeros(len(graphs))
+    labels = torch.LongTensor(
+        [graph.label for graph in graphs]).to(device)
+    loss_all = criterion_ce(output, labels)
+    correct_all = pred.eq(labels.view_as(
+        pred)).sum().cpu().item()
+    acc_all = correct_all / len(graphs)
+    mask = torch.zeros(len(graphs))
     for j in range(len(graphs)):
-        mask_t[j] = 1 - graphs[j].nodegroup
-    mask_t = mask_t.bool()
-    loss =  criterion_ce(output[mask_t], labels[mask_t])
-    correct = pred[mask_t].eq(labels[mask_t].view_as(
-        pred[mask_t])).sum().cpu().item()
-    acc_tail = correct / float(mask_t.sum())
+        mask[j] = graphs[j].nodegroup
+    mask_head = (mask == 2)
+    mask_medium = (mask == 1)
+    mask_tail = (mask == 0)
+    loss_head = criterion_ce(output[mask_head], labels[mask_head])
+    correct_head = pred[mask_head].eq(labels[mask_head].view_as(
+        pred[mask_head])).sum().cpu().item()
+    acc_head = correct_head / float(mask_head.sum())
+    loss_medium = criterion_ce(output[mask_medium], labels[mask_medium])
+    correct_medium = pred[mask_medium].eq(labels[mask_medium].view_as(
+        pred[mask_medium])).sum().cpu().item()
+    acc_medium = correct_medium / float(mask_medium.sum())
+    loss_tail = criterion_ce(output[mask_tail], labels[mask_tail])
+    correct_tail = pred[mask_tail].eq(labels[mask_tail].view_as(
+        pred[mask_tail])).sum().cpu().item()
+    acc_tail = correct_tail / float(mask_tail.sum())
 
-    return loss, acc_tail, correct
+    return loss_all, acc_all, acc_head, acc_medium, acc_tail
 
 
 def main():
@@ -320,29 +335,34 @@ def main():
         seed = 2022
         learn_eps = False
         l2 = 0
+        K = [0, 371, 742, 1113]
     elif args.dataset == "PTC": 
         hidden_dim = 32
         batch_size = 32
         seed = 0
         learn_eps = True
         l2 = 5e-4
+        K = [0, 115, 230, 344]
     elif args.dataset == "IMDBBINARY": 
         hidden_dim = 64
         batch_size = 32
         seed = 2020
         learn_eps = True
         l2 = 5e-4
+        K = [0, 333, 666, 1000]
     elif args.dataset == "DD":
         hidden_dim = 32
         batch_size = 128
         seed = 2022
         learn_eps = False
         l2 = 0
+        K = [0, 393, 785, 1178]
     elif args.dataset == "FRANK":
         hidden_dim = 32
         batch_size = 128
         learn_eps = True
         l2 = 5e-4
+        K =[0, 1445, 2890, 4337]
 
     args.hidden_dim = hidden_dim
     args.batch_size = batch_size
@@ -353,26 +373,34 @@ def main():
     graphs, num_classes = load_data(args.dataset, degree_state)
 
     gsamples = load_sample(args.dataset)
+    print(gsamples)
 
     nodes = torch.zeros(len(graphs))
-    
+    print(nodes.shape)
+
     for i in range(len(graphs)):
         nodes[i] = graphs[i].g.number_of_nodes()
         
     _, ind = torch.sort(nodes, descending=True)
 
-    for i in ind[:args.K]:
-        graphs[i].nodegroup += 1
+    for i in ind[K[0]:K[1]]:
+        graphs[i].nodegroup = 2
+    for i in ind[K[1]:K[2]]:
+        graphs[i].nodegroup = 1
+    for i in ind[K[2]:K[3]]:
+        graphs[i].nodegroup = 0
 
     train_graphs, valid_graphs, test_graphs, train_samples = data_split(graphs, gsamples, args.valid_ratio, args.test_ratio, args.seed)
+    print(len(train_graphs), len(valid_graphs), len(test_graphs), len(train_samples))
 
-    cnt_node = torch.zeros(2)
+    cnt_node = torch.zeros(3)
 
     for i in range(len(test_graphs)):
         cnt_node[test_graphs[i].nodegroup] += 1
 
     print('The number of graphs in test set:', end=' ')
-    print("Head: %f" % (cnt_node[1]), end=', ')
+    print("Head: %f" % (cnt_node[2]), end=', ')
+    print("Medium: %f" % (cnt_node[1]), end=', ')
     print("Tail: %f" % (cnt_node[0]))
 
     times = 5
@@ -380,6 +408,8 @@ def main():
     test_record = torch.zeros(times)
     valid_record = torch.zeros(times)
     tail_record = torch.zeros(times)
+    medium_record = torch.zeros(times)
+    head_record = torch.zeros(times)
     
     for seed in range(times):
 
@@ -445,44 +475,73 @@ def main():
         best_valid_acc = 0
         best_valid_loss = 100000
         patience = 0
+        test_acc_list= []
+        test_acc_head_list = []
+        test_acc_medium_list = []
+        test_acc_tail_list = []
 
         for epoch in range(0, args.epochs):
             scheduler.step()
 
             _ = train(args, model, patmem, device, train_graphs, train_samples, optimizer, opt_p, epoch)
 
-            loss_valid, acc_valid, _ = test(args, model, patmem, device, valid_graphs, epoch)
+            loss_valid, acc_valid, acc_head_valid, acc_medium_valid, acc_tail_valid= test(args, model, patmem, device, valid_graphs, epoch)
 
             print("valid loss: %.4f acc: %.4f" % (loss_valid, acc_valid))
 
             if loss_valid < best_valid_loss and acc_valid > best_valid_acc:
                 best_valid_acc = acc_valid
                 best_valid_loss = loss_valid
+                loss, test_acc, test_acc_head, test_acc_medium, test_acc_tail = test(args, model, patmem, device, test_graphs, epoch)
+                print("test acc: %.4f" % test_acc)
+                print("test acc_head: %.4f" % test_acc_head)
+                print("test acc_medium: %.4f" % test_acc_medium)
+                print("test acc_tail: %.4f" % test_acc_tail)
+                test_acc_list.append(test_acc)
+                test_acc_head_list.append(test_acc_head)
+                test_acc_medium_list.append(test_acc_medium)
+                test_acc_tail_list.append(test_acc_tail)
                 patience = 0
-                _, tail_acc, correct_tail = test(args, model, patmem, device, test_graphs, epoch)
-                print("test tail: %.4f" % tail_acc)
+                # _, tail_acc, correct_tail = test(args, model, patmem, device, test_graphs, epoch)
             else:
                 patience += 1
             
             if patience == 100:
                 break
 
-        total_acc = (correct_tail + correct) / len(test_graphs)
+        print("Seed: %.4f valid acc: %.4f test acc: %.4f tail acc: %.4f" % (seed, best_valid_acc, test_acc, test_acc_tail))
 
-        print("Seed: %.4f valid acc: %.4f test acc: %.4f tail acc: %.4f" % (seed, best_valid_acc, total_acc, tail_acc))
-
-        test_record[seed] = total_acc
+        test_record[seed] =  test_acc
         valid_record[seed] = best_valid_acc
-        tail_record[seed] = tail_acc
+        head_record[seed] = test_acc_head
+        medium_record[seed] = test_acc_medium
+        tail_record[seed] = test_acc_tail
 
 
     print('Valid mean: %.4f, std: %.4f' %
-        (valid_record.mean().item(), valid_record.std().item()))
+          (valid_record.mean().item(), valid_record.std().item()))
     print('Test mean: %.4f, std: %.4f' %
-        (test_record.mean().item(), test_record.std().item()))
+          (test_record.mean().item(), test_record.std().item()))
+    print('Head mean: %.4f, std: %.4f' %
+          (head_record.mean().item(), head_record.std().item()))
+    print('Medium mean: %.4f, std: %.4f' %
+          (medium_record.mean().item(), medium_record.std().item()))
     print('Tail mean: %.4f, std: %.4f' %
-        (tail_record.mean().item(), tail_record.std().item()))
+          (tail_record.mean().item(), tail_record.std().item()))
 
+    with open("metrics.txt", "a") as txt_file:
+        txt_file.write(f"Dataset: {args.dataset}, \n"
+                       f"Valid Mean: {round(valid_record.mean().item(), 4)}, \n"
+                       f"Std Valid Mean: {round(valid_record.std().item(), 4)}, \n"
+                       f"Test Mean: {round(test_record.mean().item(), 4)}, \n"
+                       f"Std Test Mean: {round(test_record.std().item(), 4)}, \n"
+                       f"Head Mean: {round(head_record.mean().item(), 4)}, \n"
+                       f"Std Head Mean: {round(head_record.std().item(), 4)}, \n"
+                       f"Medium Mean: {round(medium_record.mean().item(), 4)}, \n"
+                       f"Std Medium Mean: {round(medium_record.std().item(), 4)}, \n"
+                       f"Tail Mean: {round(tail_record.mean().item(), 4)}, \n"
+                       f"Std Tail Mean: {round(tail_record.std().item(), 4)} \n\n"
+        )
 
 if __name__ == '__main__':
     main()

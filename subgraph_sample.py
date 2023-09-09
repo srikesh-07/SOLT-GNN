@@ -1,16 +1,18 @@
 import numpy as np
-
+import torch
 from util import load_data
 
 
-def subgraph_sample(dataset, graph_list, border, nums = 500):
+def subgraph_sample(dataset, graph_list, Kl, nums = 500):
 
     print("Sampling Data")
 
     with open('dataset/%s/sampling.txt' % (dataset), 'w') as f:
         f.write(str(len(graph_list))+'\n')
         for graph in graph_list:
-            if graph.nodegroup == 1:
+            border = Kl[int(graph.nodegroup)]
+            if graph.nodegroup != 0:
+                assert graph.nodegroup < 3
                 graph.sample_list = []
                 graph.unsample_list = []
                 graph.sample_x = []
@@ -61,18 +63,28 @@ if __name__ == '__main__':
         graphs, num_classes = load_data(dataset, 0)
 
         if dataset == 'PTC':
-            border = 35
+            K = [0, 115, 230, 344]
         elif dataset == "PROTEINS":
-            border = 50
+            K = [0, 371, 742, 1113]
         elif dataset == "IMDBBINARY":
-            border = 25
+            K = [0, 333, 666, 1000]
         elif dataset == "DD":
-            border = 400
+            K = [0, 393, 785, 1178]
         elif dataset == "FRANK":
-            border = 22
+            K = [0, 1445, 2890, 4337]
+
+        nodes = torch.zeros(len(graphs))
 
         for i in range(len(graphs)):
-            if graphs[i].g.number_of_nodes() >= border:
-                graphs[i].nodegroup += 1
+            nodes[i] = graphs[i].g.number_of_nodes()
 
-        subgraph_sample(dataset, graphs, border)
+        _, ind = torch.sort(nodes, descending=True)
+
+        for i in ind[K[0]:K[1]]:
+            graphs[i].nodegroup = 2
+        for i in ind[K[1]:K[2]]:
+            graphs[i].nodegroup = 1
+        for i in ind[K[2]:K[3]]:
+            graphs[i].nodegroup = 0
+
+        subgraph_sample(dataset, graphs, K)
