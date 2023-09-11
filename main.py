@@ -6,10 +6,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import os
 from numpy.core.numeric import False_
 
 from gin import GIN
 from PatternMemory import PatternMemory
+import json
 from util import data_split, load_data, load_sample
 
 criterion_ce = nn.CrossEntropyLoss()
@@ -531,6 +533,8 @@ def main():
 
     with open("metrics.txt", "a") as txt_file:
         txt_file.write(f"Dataset: {args.dataset}, \n"
+                       f"Alpha: {args.alpha}, \n"
+                       f"Mu: {args.mu1}, \n"
                        f"Valid Mean: {round(valid_record.mean().item(), 4)}, \n"
                        f"Std Valid Mean: {round(valid_record.std().item(), 4)}, \n"
                        f"Test Mean: {round(test_record.mean().item(), 4)}, \n"
@@ -541,6 +545,25 @@ def main():
                        f"Std Medium Mean: {round(medium_record.std().item(), 4)}, \n"
                        f"Tail Mean: {round(tail_record.mean().item(), 4)}, \n"
                        f"Std Tail Mean: {round(tail_record.std().item(), 4)} \n\n"
+        )
+
+    os.makedirs("exp", exist_ok=True)
+    os.makedirs(os.path.join("exp", args.dataset), exist_ok=True)
+
+    with open(os.path.join("exp", args.dataset, f"{args.dataset}_{args.alpha}_{args.mu1}.json", "w")) as json_file:
+        json.dump({"Dataset": args.dataset,
+                   "Alpha": {args.alpha},
+                   "Mu": args.mu1,
+                   "Valid Mean": round(valid_record.mean().item(), 4),
+                   "Std Valid Mean": round(valid_record.std().item(), 4),
+                   "Test Mean": round(test_record.mean().item(), 4),
+                   "Std Test Mean": round(test_record.std().item(), 4),
+                   "Head Mean": round(head_record.mean().item(), 4),
+                   "Std Head Mean": round(head_record.std().item(), 4),
+                   "Medium Mean": round(medium_record.mean().item(), 4),
+                   "Std Medium Mean": round(medium_record.std().item(), 4),
+                   "Tail Mean": round(tail_record.mean().item(), 4),
+                   "Std Tail Mean": round(tail_record.std().item(), 4)}, json_file
         )
 
 if __name__ == '__main__':
