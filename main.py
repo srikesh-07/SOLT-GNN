@@ -100,11 +100,11 @@ def train(args, model, patmem, device, graphs, samples, optimizer, optimizer_p, 
             continue
 
         batch_graph_h = [train_graphs[idx]
-                         for idx in selected_idx if train_graphs[idx].nodegroup == 2]
+                         for idx in selected_idx if train_graphs[idx].nodegroup != 0]
         batch_samples_h = [train_samples[idx]
-                           for idx in selected_idx if train_graphs[idx].nodegroup == 2]
+                           for idx in selected_idx if train_graphs[idx].nodegroup != 0]
         batch_graph_t = [train_graphs[idx]
-                         for idx in selected_idx if train_graphs[idx].nodegroup != 2]
+                         for idx in selected_idx if train_graphs[idx].nodegroup == 0]
 
         n_h = len(batch_graph_h)
         n_t = len(batch_graph_t)
