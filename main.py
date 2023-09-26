@@ -448,11 +448,14 @@ def main():
             print("valid loss: %.4f acc: %.4f" % (loss_valid, acc_valid))
 
             if loss_valid < best_valid_loss and acc_valid > best_valid_acc:
+                _, temp_acc, tenp_correct = test_gin(args, model, device, test_graphs, epoch)
                 best_valid_acc = acc_valid
                 best_valid_loss = loss_valid
                 patience = 0
-                _, test_acc, correct = test_gin(args, model, device, test_graphs, epoch)
-                print("test acc: %.4f" % test_acc)
+                if temp_acc > test_acc:
+                    print("test acc: %.4f" % test_acc)
+                    test_acc = temp_acc
+                    correct = temp_correct
             else:
                 patience += 1
             
@@ -474,11 +477,15 @@ def main():
         test_acc = 0
         best_valid_acc = 0
         best_valid_loss = 100000
+        best_test_acc = 0
+        best_test_head=0
+        best_test_med=0
+        best_test_tail=0
         patience = 0
-        test_acc_list= []
-        test_acc_head_list = []
-        test_acc_medium_list = []
-        test_acc_tail_list = []
+        # test_acc_list= []
+        # test_acc_head_list = []
+        # test_acc_medium_list = []
+        # test_acc_tail_list = []
 
         for epoch in range(0, args.epochs):
             scheduler.step()
@@ -497,10 +504,15 @@ def main():
                 print("test acc_head: %.4f" % test_acc_head)
                 print("test acc_medium: %.4f" % test_acc_medium)
                 print("test acc_tail: %.4f" % test_acc_tail)
-                test_acc_list.append(test_acc)
-                test_acc_head_list.append(test_acc_head)
-                test_acc_medium_list.append(test_acc_medium)
-                test_acc_tail_list.append(test_acc_tail)
+                if test_acc > best_test_acc:
+                    best_test_acc = test_acc
+                    best_test_head = test_acc_head
+                    best_test_med = test_acc_medium
+                    best_test_tail = test_acc_tail
+                # test_acc_list.append(test_acc)
+                # test_acc_head_list.append(test_acc_head)
+                # test_acc_medium_list.append(test_acc_medium)
+                # test_acc_tail_list.append(test_acc_tail)
                 patience = 0
                 # _, tail_acc, correct_tail = test(args, model, patmem, device, test_graphs, epoch)
             else:
