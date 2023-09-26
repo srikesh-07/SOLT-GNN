@@ -1,12 +1,13 @@
 import argparse
 import random
+import os
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import os
 from numpy.core.numeric import False_
 
 from gin import GIN
@@ -329,6 +330,7 @@ def main():
     args = parser.parse_args()
 
     degree_state = 0
+    seed = 0
 
     #Base Hyper-parameter configuration
     if args.dataset == "PROTEINS":
@@ -477,10 +479,14 @@ def main():
         best_valid_acc = 0
         best_valid_loss = 100000
         patience = 0
-        test_acc_list= []
-        test_acc_head_list = []
-        test_acc_medium_list = []
-        test_acc_tail_list = []
+        best_test_acc = 0
+        best_test_head= 0
+        best_test_med = 0
+        best_test_tail = 0
+        # test_acc_list= []
+        # test_acc_head_list = []
+        # test_acc_medium_list = []
+        # test_acc_tail_list = []
 
         for epoch in range(0, args.epochs):
             scheduler.step()
@@ -495,14 +501,19 @@ def main():
                 best_valid_acc = acc_valid
                 best_valid_loss = loss_valid
                 loss, test_acc, test_acc_head, test_acc_medium, test_acc_tail = test(args, model, patmem, device, test_graphs, epoch)
-                print("test acc: %.4f" % test_acc)
-                print("test acc_head: %.4f" % test_acc_head)
-                print("test acc_medium: %.4f" % test_acc_medium)
-                print("test acc_tail: %.4f" % test_acc_tail)
-                test_acc_list.append(test_acc)
-                test_acc_head_list.append(test_acc_head)
-                test_acc_medium_list.append(test_acc_medium)
-                test_acc_tail_list.append(test_acc_tail)
+                if test_acc > best_test_acc:
+                    best_test_acc  = test_acc
+                    best_test_head = test_acc_head
+                    best_test_med = test_acc_med
+                    best_test_tail = test_acc_tail
+                print("test acc: %.4f" % best_test_acc)
+                print("test acc_head: %.4f" % best_test_head)
+                print("test acc_medium: %.4f" % best_test_med)
+                print("test acc_tail: %.4f" % best_test_tail)
+                # test_acc_list.append(test_acc)
+                # test_acc_head_list.append(test_acc_head)
+                # test_acc_medium_list.append(test_acc_medium)
+                # test_acc_tail_list.append(test_acc_tail)
                 patience = 0
                 # _, tail_acc, correct_tail = test(args, model, patmem, device, test_graphs, epoch)
             else:
@@ -513,11 +524,11 @@ def main():
 
         print("Seed: %.4f valid acc: %.4f test acc: %.4f tail acc: %.4f" % (seed, best_valid_acc, test_acc, test_acc_tail))
 
-        test_record[seed] =  test_acc
+        test_record[seed] =  best_test_acc
         valid_record[seed] = best_valid_acc
-        head_record[seed] = test_acc_head
-        medium_record[seed] = test_acc_medium
-        tail_record[seed] = test_acc_tail
+        head_record[seed] = best_test_head
+        medium_record[seed] = best_test_med
+        tail_record[seed] = best_test_tail
 
 
     print('Valid mean: %.4f, std: %.4f' %
@@ -534,7 +545,8 @@ def main():
     with open("metrics.txt", "a") as txt_file:
         txt_file.write(f"Dataset: {args.dataset}, \n"
                        f"Alpha: {args.alpha}, \n"
-                       f"Mu: {args.mu1}, \n"
+                       f"Mu1: {args.mu1}, \n"
+                       f"Mu2: {args.mu2}, \n"
                        f"Valid Mean: {round(valid_record.mean().item(), 4)}, \n"
                        f"Std Valid Mean: {round(valid_record.std().item(), 4)}, \n"
                        f"Test Mean: {round(test_record.mean().item(), 4)}, \n"
