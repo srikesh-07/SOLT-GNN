@@ -31,6 +31,7 @@ class S2VGraph(object):
         self.max_neighbor = 0
         
         self.nodegroup = 0
+        self.graphgroup = 0
 
         self.K = 0
         self.sample_list = []
