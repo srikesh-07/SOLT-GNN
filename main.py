@@ -428,40 +428,40 @@ def main():
         device = torch.device("cuda:" + str(args.device)
                             ) if torch.cuda.is_available() else torch.device("cpu")
 
-        print("Train GIN firstly for head graphs")
+        # print("Train GIN firstly for head graphs")
 
-        model = GIN(args.num_layers, args.num_mlp_layers, train_graphs[0].node_features.shape[1], args.hidden_dim, num_classes, args.dropout, args.learn_eps, args.graph_pooling_type, args.neighbor_pooling_type, device).to(device)
+        # model = GIN(args.num_layers, args.num_mlp_layers, train_graphs[0].node_features.shape[1], args.hidden_dim, num_classes, args.dropout, args.learn_eps, args.graph_pooling_type, args.neighbor_pooling_type, device).to(device)
 
-        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
+        # optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
 
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
+        # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
 
-        test_acc = 0
-        best_valid_acc = 0
-        best_valid_loss = 100000
-        correct = 0
-        patience = 0
+        # test_acc = 0
+        # best_valid_acc = 0
+        # best_valid_loss = 100000
+        # correct = 0
+        # patience = 0
 
-        for epoch in range(0, args.epochs):
-            scheduler.step()
+        # for epoch in range(0, args.epochs):
+        #     scheduler.step()
 
-            _ = train_gin(args, model, device, train_graphs, optimizer,  epoch)
+        #     _ = train_gin(args, model, device, train_graphs, optimizer,  epoch)
 
-            loss_valid, acc_valid, _ = test_gin(args, model, device, valid_graphs, epoch)
+        #     loss_valid, acc_valid, _ = test_gin(args, model, device, valid_graphs, epoch)
 
-            print("valid loss: %.4f acc: %.4f" % (loss_valid, acc_valid))
+        #     print("valid loss: %.4f acc: %.4f" % (loss_valid, acc_valid))
 
-            if loss_valid < best_valid_loss and acc_valid > best_valid_acc:
-                best_valid_acc = acc_valid
-                best_valid_loss = loss_valid
-                patience = 0
-                _, test_acc, correct = test_gin(args, model, device, test_graphs, epoch)
-                print("test acc: %.4f" % test_acc)
-            else:
-                patience += 1
+        #     if loss_valid < best_valid_loss and acc_valid > best_valid_acc:
+        #         best_valid_acc = acc_valid
+        #         best_valid_loss = loss_valid
+        #         patience = 0
+        #         _, test_acc, correct = test_gin(args, model, device, test_graphs, epoch)
+        #         print("test acc: %.4f" % test_acc)
+        #     else:
+        #         patience += 1
             
-            if patience == 100:
-                break
+        #     if patience == 100:
+        #         break
 
         print("Train SOLTGIN for tail graphs")
 
