@@ -524,10 +524,10 @@ def main():
         print("Seed: %.4f valid acc: %.4f test acc: %.4f tail acc: %.4f" % (seed, best_valid_acc, test_acc, test_acc_tail))
 
         test_record[seed] =  test_acc
-        valid_record[seed] = best_valid_acc
-        head_record[seed] = test_acc_head
-        medium_record[seed] = test_acc_medium
-        tail_record[seed] = test_acc_tail
+        valid_record[seed] = best_test_acc
+        head_record[seed] = best_test_head
+        medium_record[seed] = best_test_med
+        tail_record[seed] = best_test_tail
 
 
     print('Valid mean: %.4f, std: %.4f' %
