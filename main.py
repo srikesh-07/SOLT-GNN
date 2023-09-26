@@ -1,5 +1,8 @@
 import argparse
 import random
+import os
+
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
 
 import numpy as np
 import torch
@@ -327,6 +330,7 @@ def main():
     args = parser.parse_args()
 
     degree_state = 0
+    seed = 0
 
     #Base Hyper-parameter configuration
     if args.dataset == "PROTEINS":
