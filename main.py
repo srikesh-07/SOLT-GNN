@@ -504,7 +504,7 @@ def main():
                 if test_acc > best_test_acc:
                     best_test_acc  = test_acc
                     best_test_head = test_acc_head
-                    best_test_med = test_acc_med
+                    best_test_med = test_acc_medium
                     best_test_tail = test_acc_tail
                 print("test acc: %.4f" % best_test_acc)
                 print("test acc_head: %.4f" % best_test_head)
