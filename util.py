@@ -3,7 +3,7 @@ import random
 import networkx as nx
 import numpy as np
 import torch
-
+from sklearn.model_selection import StratifiedKFold
 
 class SubGraph(object):
     def __init__(self, sample_list = [], unsample_list = []):
@@ -140,21 +140,39 @@ def load_data(dataset, degree_as_tag):
     return g_list, len(label_dict)
                 
 
-def data_split(graph_list, sample_list, valid_ratio = 0.1, test_ratio = 0.2, seed = 2022):
-    random.seed(seed)
-    shuffled_indices = list(range(len(graph_list)))
-    random.shuffle(shuffled_indices)
-    test_set_size = int(len(graph_list)*test_ratio)
-    train_set_size = int(len(graph_list)*(1-test_ratio-valid_ratio))
-    test_indices = shuffled_indices[-test_set_size:]
-    valid_indices = shuffled_indices[train_set_size:-test_set_size]
-    train_indices = shuffled_indices[:train_set_size]
-    train_graph_list = [graph_list[i] for i in train_indices]
-    train_sample_list = [sample_list[i] for i in train_indices]
-    test_graph_list = [graph_list[i] for i in test_indices]
-    valid_graph_list = [graph_list[i] for i in valid_indices]
+# def data_split(graph_list, sample_list, valid_ratio = 0.1, test_ratio = 0.2, seed = 2022):
+#     random.seed(seed)
+#     shuffled_indices = list(range(len(graph_list)))
+#     random.shuffle(shuffled_indices)
+#     test_set_size = int(len(graph_list)*test_ratio)
+#     train_set_size = int(len(graph_list)*(1-test_ratio-valid_ratio))
+#     test_indices = shuffled_indices[-test_set_size:]
+#     valid_indices = shuffled_indices[train_set_size:-test_set_size]
+#     train_indices = shuffled_indices[:train_set_size]
+#     train_graph_list = [graph_list[i] for i in train_indices]
+#     train_sample_list = [sample_list[i] for i in train_indices]
+#     test_graph_list = [graph_list[i] for i in test_indices]
+#     valid_graph_list = [graph_list[i] for i in valid_indices]
 
-    return train_graph_list, valid_graph_list, test_graph_list, train_sample_list
+#     return train_graph_list, valid_graph_list, test_graph_list, train_sample_list
+
+
+def k_fold(graph_list, folds, y=None):
+    skf = StratifiedKFold(folds, shuffle=True, random_state=12345)
+
+    test_indices, train_indices = [], []
+    for _, idx in skf.split(torch.zeros(len(graph_list)), y):
+        test_indices.append(torch.from_numpy(idx).to(torch.long))
+
+    val_indices = [test_indices[i - 1] for i in range(folds)]
+
+    for i in range(folds):
+        train_mask = torch.ones(len(graph_list), dtype=torch.bool)
+        train_mask[test_indices[i]] = 0
+        train_mask[val_indices[i]] = 0
+        train_indices.append(train_mask.nonzero(as_tuple=False).view(-1))
+
+    return train_indices, test_indices, val_indices
 
 
 def load_sample(dataset):
@@ -179,7 +197,3 @@ def load_sample(dataset):
             gsample_list.append(SubGraph(sample_list, unsample_list))
     print("loading finished!")
     return gsample_list
-
-
-            
-
