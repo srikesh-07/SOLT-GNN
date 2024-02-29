@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from numpy.core.numeric import False_
+from subgraph_sample import generate_subgraph_samples
 from categorizer import GraphCategorizer
 from gin import GIN
 from PatternMemory import PatternMemory
@@ -325,6 +326,10 @@ def main():
                         help='the number of node-level co-occurrence triplets per node at single epoch')
     parser.add_argument('--n_g', type=int, default=1,
                         help='the number of subgraph-level co-occurrence triplets per graph at single epoch')
+    parser.add_argument('--k_ratio', type=float, default=1,
+                        help='[CUSTOM] Ratio of Graphs to Determine the K Ratio')
+    parser.add_argument('--force_sampling', action="store_true",
+                        help='[CUSTOM] Re-Intitate the Samplng')
     args = parser.parse_args()
 
     degree_state = 0
@@ -337,34 +342,29 @@ def main():
         seed = 2022
         learn_eps = False
         l2 = 0
-        K = [0, 371, 742, 1113]
     elif args.dataset == "PTC":
         hidden_dim = 32
         batch_size = 32
         seed = 0
         learn_eps = True
         l2 = 5e-4
-        K = [0, 115, 230, 344]
     elif args.dataset == "IMDBBINARY":
         hidden_dim = 64
         batch_size = 32
         seed = 2020
         learn_eps = True
         l2 = 5e-4
-        K = [0, 333, 666, 1000]
     elif args.dataset == "DD":
         hidden_dim = 32
         batch_size = 128
         seed = 2022
         learn_eps = False
         l2 = 0
-        K = [0, 393, 785, 1178]
     elif args.dataset == "FRANK":
         hidden_dim = 32
         batch_size = 128
         learn_eps = True
         l2 = 5e-4
-        K =[0, 1445, 2890, 4337]
 
     args.hidden_dim = hidden_dim
     args.batch_size = batch_size
@@ -373,7 +373,11 @@ def main():
     args.seed = seed
 
     graphs, num_classes = load_data(args.dataset, degree_state)
-
+    args.K = int(len(graphs) * args.k_ratio)
+    print(f'[INFO] Overwriting K as {args.K}')
+    border = generate_subgraph_samples(dataset=graphs,
+                                       k=args.K,
+                                       force_sampling=args.force_sampling)
     gsamples = load_sample(args.dataset)
 
     nodes = list()
@@ -382,6 +386,7 @@ def main():
         nodes.append(graphs[i].g.number_of_nodes())
 
     _, ind = torch.sort(torch.tensor(nodes, dtype=torch.long), descending=True)
+
 
     for i in ind[:args.K]:
         graphs[i].nodegroup += 1
@@ -438,7 +443,7 @@ def main():
         print("Med: %f" % (cnt_node[1]), end=', ')
         print("Tail: %f" % (cnt_node[2]))
 
-        times = 5
+        # times = 5
         seed = 12345
 
         random.seed(seed)
@@ -460,10 +465,10 @@ def main():
 
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
 
-        test_acc = 0
+        # test_acc = 0
         best_valid_acc = 0
         best_valid_loss = 100000
-        correct = 0
+        # correct = 0
         patience = 0
 
         for epoch in range(0, args.epochs):
@@ -499,15 +504,15 @@ def main():
 
         opt_p = optim.Adam(patmem.parameters(), lr=args.lr, weight_decay=args.l2)
 
-        test_acc = 0
-        best_valid_acc = 0
-        best_valid_loss = 100000
-        patience = 0
-
-        best_test_acc = 0
-        best_test_head = 0
-        best_test_med = 0
-        best_test_tail = 0
+        # test_acc = 0
+        # best_valid_acc = 0
+        # best_valid_loss = 100000
+        # patience = 0
+        #
+        # best_test_acc = 0
+        # best_test_head = 0
+        # best_test_med = 0
+        # best_test_tail = 0
         # test_acc_list= []
         # test_acc_head_list = []
         # test_acc_medium_list = []
@@ -593,6 +598,8 @@ def main():
 
     with open("metrics.txt", "a") as txt_file:
         txt_file.write(f"Dataset: {args.dataset}, \n"
+                       f"K: {args.K}"
+                       f"Subgraph Sampling Border: {border}"
                        f"Alpha: {args.alpha}, \n"
                        f"Mu1: {args.mu1}, \n"
                        f"Mu2: {args.mu2}, \n"

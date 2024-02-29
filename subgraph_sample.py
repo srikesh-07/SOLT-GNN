@@ -1,3 +1,5 @@
+import os.path
+
 import numpy as np
 
 from util import load_data
@@ -52,27 +54,34 @@ def subgraph_sample(dataset, graph_list, border, nums = 500):
                 f.write('0\n')
     print("%s Finished"%(dataset))           
 
-if __name__ == '__main__':
 
-    for dataset in ['PTC', "PROTEINS", "DD", 'FRANK', "IMDBBINARY"]:
+def generate_subgraph_samples(dataset, k=None, force_sampling=False):
+    np.random.seed(0)
 
-        np.random.seed(0)
+    graphs, num_classes = load_data(dataset, 0)
 
-        graphs, num_classes = load_data(dataset, 0)
+    if dataset == 'PTC':
+        border = 35
+    elif dataset == "PROTEINS":
+        border = 50
+    elif dataset == "IMDBBINARY":
+        border = 25
+    elif dataset == "DD":
+        border = 400
+    elif dataset == "FRANK":
+        border = 22
+    else:
+        assert k is not None, "Value of K is need to determine the border."
+        sorted_graphs = sorted([x.g.number_of_nodes() for x in graphs], reverse=True)
+        border = min(sorted_graphs[:k])
+        print(f"[INFO] Setting Border - {border} for Graph Sub-Sampling.")
 
-        if dataset == 'PTC':
-            border = 35
-        elif dataset == "PROTEINS":
-            border = 50
-        elif dataset == "IMDBBINARY":
-            border = 25
-        elif dataset == "DD":
-            border = 400
-        elif dataset == "FRANK":
-            border = 22
-
+    if not os.path.isfile(f'dataset/{dataset}/sampling.txt') or force_sampling:
         for i in range(len(graphs)):
             if graphs[i].g.number_of_nodes() >= border:
                 graphs[i].nodegroup += 1
 
         subgraph_sample(dataset, graphs, border)
+
+    return border
+
