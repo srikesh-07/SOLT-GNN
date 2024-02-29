@@ -326,7 +326,7 @@ def main():
                         help='the number of node-level co-occurrence triplets per node at single epoch')
     parser.add_argument('--n_g', type=int, default=1,
                         help='the number of subgraph-level co-occurrence triplets per graph at single epoch')
-    parser.add_argument('--k_ratio', type=float, default=1,
+    parser.add_argument('--k_ratio', type=float, default=0.20,
                         help='[CUSTOM] Ratio of Graphs to Determine the K Ratio')
     parser.add_argument('--force_sampling', action="store_true",
                         help='[CUSTOM] Re-Intitate the Samplng')
