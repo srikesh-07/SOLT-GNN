@@ -16,6 +16,7 @@ from util import k_fold, load_data, load_sample
 criterion_ce = nn.CrossEntropyLoss()
 criterion_cs = nn.CosineSimilarity(dim=1, eps=1e-7)
 
+
 def train_gin(args, model, device, graphs, optimizer, epoch):
     model.train()
     print('epoch: %d' % (epoch), end=" ")
@@ -25,7 +26,7 @@ def train_gin(args, model, device, graphs, optimizer, epoch):
     shuffle_idx = np.random.permutation(len(graphs))
     train_graphs = [graphs[id] for id in shuffle_idx]
     for i in range(0, len(train_graphs), minibatch_size):
-        selected_idx = idx[i:i+minibatch_size]
+        selected_idx = idx[i:i + minibatch_size]
         if len(selected_idx) == 0:
             continue
         batch_graph_h = [train_graphs[idx] for idx in selected_idx]
@@ -38,17 +39,18 @@ def train_gin(args, model, device, graphs, optimizer, epoch):
             optimizer.step()
         loss = loss.detach().cpu().numpy()
         loss_accum += loss
-    average_loss = loss_accum/float(len(train_graphs))
-    print("loss training: %f" % (average_loss), end = ' ')
+    average_loss = loss_accum / float(len(train_graphs))
+    print("loss training: %f" % (average_loss), end=' ')
     return average_loss
 
+
 @torch.no_grad()
-def pass_data_iteratively_gin(model, graphs, minibatch_size = 128):
+def pass_data_iteratively_gin(model, graphs, minibatch_size=128):
     model.eval()
     output = []
     idx = np.arange(len(graphs))
     for i in range(0, len(graphs), minibatch_size):
-        sampled_idx = idx[i:i+minibatch_size]
+        sampled_idx = idx[i:i + minibatch_size]
         if len(sampled_idx) == 0:
             continue
         output.append(model([graphs[j] for j in sampled_idx]).detach())
@@ -62,7 +64,7 @@ def test_gin(args, model, device, graphs, epoch):
     pred = output.max(1, keepdim=True)[1]
     labels = torch.LongTensor(
         [graph.label for graph in graphs]).to(device)
-    loss =  criterion_ce(output, labels)
+    loss = criterion_ce(output, labels)
     correct = pred.eq(labels.view_as(
         pred)).sum().cpu().item()
     acc = correct / len(graphs)
@@ -81,7 +83,7 @@ def train(args, model, patmem, device, graphs, samples, optimizer, optimizer_p, 
     patmem.train()
     minibatch_size = args.batch_size
     loss_accum = 0
-    print('epoch: %d' % (epoch+1), end=" ")
+    print('epoch: %d' % (epoch + 1), end=" ")
 
     shuffle = np.random.permutation(len(graphs))
     train_graphs = [graphs[ind] for ind in shuffle]
@@ -93,7 +95,7 @@ def train(args, model, patmem, device, graphs, samples, optimizer, optimizer_p, 
 
     for i in range(0, len(train_graphs), minibatch_size):
 
-        selected_idx = idx[i:i+minibatch_size]
+        selected_idx = idx[i:i + minibatch_size]
 
         if len(selected_idx) == 0:
             continue
@@ -114,10 +116,10 @@ def train(args, model, patmem, device, graphs, samples, optimizer, optimizer_p, 
 
         embeddings_head = model.get_patterns(batch_graph_h)
 
-        gsize = np.zeros(n_h+1, dtype=int)
+        gsize = np.zeros(n_h + 1, dtype=int)
 
         for i, graph in enumerate(batch_graph_h):
-            gsize[i+1] = gsize[i] + graph.g.number_of_nodes()
+            gsize[i + 1] = gsize[i] + graph.g.number_of_nodes()
 
         q_idx = []
         pos_idx = []
@@ -127,7 +129,7 @@ def train(args, model, patmem, device, graphs, samples, optimizer, optimizer_p, 
 
         for i, graph in enumerate(batch_graph_h):
             graph.sample_list = batch_samples_h[i].sample_list[epoch]
-            gsize[i+1] = gsize[i] + graph.g.number_of_nodes()
+            gsize[i + 1] = gsize[i] + graph.g.number_of_nodes()
             uidx = batch_samples_h[i].unsample_list[epoch] + gsize[i]
             pos_rep.append(embeddings_head[uidx].sum(dim=0, keepdim=True))
             for _ in range(args.n_g):
@@ -145,7 +147,7 @@ def train(args, model, patmem, device, graphs, samples, optimizer, optimizer_p, 
                     neg = np.random.randint(n_h)
                 size = min(batch_graph_h[neg].g.number_of_nodes(
                 ), batch_graph_h[i].g.number_of_nodes())
-                q_idx.append(torch.arange(gsize[i], gsize[i]+size).long())
+                q_idx.append(torch.arange(gsize[i], gsize[i] + size).long())
                 sample_idx = torch.tensor(np.random.permutation(
                     graph.g.number_of_nodes())).long()
                 sample_idx += gsize[i]
@@ -163,20 +165,23 @@ def train(args, model, patmem, device, graphs, samples, optimizer, optimizer_p, 
         pos = embeddings_head[pos_idx]
         neg = embeddings_head[neg_idx]
 
-        
-        loss_n = - (torch.mul(query.div(torch.norm(query, dim=1).reshape(-1, 1)+1e-7), pos.div(torch.norm(pos, dim=1).reshape(-1, 1)+1e-7)).sum(dim=1) -
-                    torch.mul(query.div(torch.norm(query, dim=1).reshape(-1, 1)+1e-7), neg.div(torch.norm(neg, dim=1).reshape(-1, 1)+1e-7)).sum(dim=1)).sigmoid().log().mean()
+        loss_n = - (torch.mul(query.div(torch.norm(query, dim=1).reshape(-1, 1) + 1e-7),
+                              pos.div(torch.norm(pos, dim=1).reshape(-1, 1) + 1e-7)).sum(dim=1) -
+                    torch.mul(query.div(torch.norm(query, dim=1).reshape(-1, 1) + 1e-7),
+                              neg.div(torch.norm(neg, dim=1).reshape(-1, 1) + 1e-7)).sum(dim=1)).sigmoid().log().mean()
 
         subgraph_rep = model.subgraph_rep(batch_graph_h)
         pos_rep = torch.cat(pos_rep)
         neg_rep = torch.cat(neg_rep)
-        query_g = patmem(subgraph_rep).repeat(args.n_g,1)
-        pos_g = pos_rep.repeat(args.n_g,1)
+        query_g = patmem(subgraph_rep).repeat(args.n_g, 1)
+        pos_g = pos_rep.repeat(args.n_g, 1)
         neg_g = neg_rep
 
-        loss_g = - (torch.mul(query_g.div(torch.norm(query_g, dim=1).reshape(-1, 1)+1e-7), pos_g.div(torch.norm(pos_g, dim=1).reshape(-1, 1)+1e-7)).sum(dim=1) -
-                    torch.mul(query_g.div(torch.norm(query_g, dim=1).reshape(-1, 1)+1e-7), neg_g.div(torch.norm(neg_g, dim=1).reshape(-1, 1)+1e-7)).sum(dim=1)).sigmoid().log().mean()
-        
+        loss_g = - (torch.mul(query_g.div(torch.norm(query_g, dim=1).reshape(-1, 1) + 1e-7),
+                              pos_g.div(torch.norm(pos_g, dim=1).reshape(-1, 1) + 1e-7)).sum(dim=1) -
+                    torch.mul(query_g.div(torch.norm(query_g, dim=1).reshape(-1, 1) + 1e-7),
+                              neg_g.div(torch.norm(neg_g, dim=1).reshape(-1, 1) + 1e-7)).sum(
+                        dim=1)).sigmoid().log().mean()
 
         graph_repre_head = model.get_graph_repre(batch_graph_h)
         patterns_head = patmem(graph_repre_head)
@@ -190,7 +195,8 @@ def train(args, model, patmem, device, graphs, samples, optimizer, optimizer_p, 
         labels_t = torch.LongTensor([graph.label for graph in batch_graph_t]).to(device)
         loss_t = criterion_ce(output_t, labels_t)
 
-        loss_d = (criterion_cs(graph_repre_tail, patterns_tail).sum() + criterion_cs(graph_repre_head, patterns_head).sum()) / n
+        loss_d = (criterion_cs(graph_repre_tail, patterns_tail).sum() + criterion_cs(graph_repre_head,
+                                                                                     patterns_head).sum()) / n
 
         l_t += loss_t.detach().cpu().numpy()
         l_h += loss_h.detach().cpu().numpy()
@@ -198,7 +204,8 @@ def train(args, model, patmem, device, graphs, samples, optimizer, optimizer_p, 
         l_g += loss_g.detach().cpu().numpy()
         l_d += loss_d.detach().cpu().numpy()
 
-        loss = 2 * (args.alpha * loss_h +  (1-args.alpha) * loss_t) + args.mu1 * loss_n + args.mu2 * loss_g + args.lbd * loss_d
+        loss = 2 * (args.alpha * loss_h + (
+                    1 - args.alpha) * loss_t) + args.mu1 * loss_n + args.mu2 * loss_g + args.lbd * loss_d
 
         optimizer.zero_grad()
         optimizer_p.zero_grad()
@@ -209,11 +216,11 @@ def train(args, model, patmem, device, graphs, samples, optimizer, optimizer_p, 
         loss = loss.detach().cpu().numpy()
         loss_accum += loss
 
-
     print("Loss Training: %f Head: %f Tail: %f Node: %f Graph: %f Dis: %f" %
-          (loss_accum, l_t, l_h,  l_n, l_g, l_d))
+          (loss_accum, l_t, l_h, l_n, l_g, l_d))
 
     return loss_accum
+
 
 @torch.no_grad()
 def pass_data_iteratively(args, model, patmem, graphs, device, minibatch_size=128):
@@ -223,7 +230,7 @@ def pass_data_iteratively(args, model, patmem, graphs, device, minibatch_size=12
     labels = []
     idx = np.arange(len(graphs))
     for i in range(0, len(graphs), minibatch_size):
-        selected_idx = idx[i:i+minibatch_size]
+        selected_idx = idx[i:i + minibatch_size]
         if len(selected_idx) == 0:
             continue
         batch_graph = [graphs[i] for i in selected_idx]
@@ -335,7 +342,7 @@ def main():
     degree_state = 0
     seed = 0
 
-    #Base Hyper-parameter configuration
+    # Base Hyper-parameter configuration
     if args.dataset == "PROTEINS":
         hidden_dim = 32
         batch_size = 32
@@ -365,6 +372,11 @@ def main():
         batch_size = 128
         learn_eps = True
         l2 = 5e-4
+    else:
+        hidden_dim = 32
+        batch_size = 32
+        learn_eps = True
+        l2 = 5e-4
 
     args.hidden_dim = hidden_dim
     args.batch_size = batch_size
@@ -375,7 +387,7 @@ def main():
     graphs, num_classes = load_data(args.dataset, degree_state)
     args.K = int(len(graphs) * args.k_ratio)
     print(f'[INFO] Overwriting K as {args.K}')
-    border = generate_subgraph_samples(dataset=graphs,
+    border = generate_subgraph_samples(dataset=args.dataset,
                                        k=args.K,
                                        force_sampling=args.force_sampling)
     gsamples = load_sample(args.dataset)
@@ -386,7 +398,6 @@ def main():
         nodes.append(graphs[i].g.number_of_nodes())
 
     _, ind = torch.sort(torch.tensor(nodes, dtype=torch.long), descending=True)
-
 
     for i in ind[:args.K]:
         graphs[i].nodegroup += 1
@@ -402,7 +413,7 @@ def main():
     print("NUM MED GRAPHS: ", split.num_med_graphs)
     print("NUM TAIL GRAPHS: ", split.num_tail_graphs)
     print("SIZE RANGES: ", split.size_ranges)
-    
+
     categories = GraphCategorizer(nodes).categories
 
     for i in range(len(graphs)):
@@ -422,9 +433,9 @@ def main():
     # tail_record = torch.zeros(folds)
     # medium_record = torch.zeros(folds)
     # head_record = torch.zeros(folds)
-    
+
     val_losses, accs, head_accs, med_accs, tail_accs, durations = [], [], [], [], [], []
-    
+
     for fold, (train_idx, test_idx,
                val_idx) in enumerate(zip(*k_fold(graphs, folds, y))):
 
@@ -432,7 +443,7 @@ def main():
         train_samples = [gsamples[i] for i in train_idx]
         test_graphs = [graphs[i] for i in test_idx]
         valid_graphs = [graphs[i] for i in val_idx]
-        
+
         cnt_node = torch.zeros(3)
 
         for i in range(len(test_graphs)):
@@ -452,14 +463,16 @@ def main():
         if torch.cuda.is_available():
             torch.cuda.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
-            torch.backends.cudnn.deterministic = True  
-        
+            torch.backends.cudnn.deterministic = True
+
         device = torch.device("cuda:" + str(args.device)
-                            ) if torch.cuda.is_available() else torch.device("cpu")
+                              ) if torch.cuda.is_available() else torch.device("cpu")
 
         print("Train GIN firstly for head graphs")
 
-        model = GIN(args.num_layers, args.num_mlp_layers, train_graphs[0].node_features.shape[1], args.hidden_dim, num_classes, args.dropout, args.learn_eps, args.graph_pooling_type, args.neighbor_pooling_type, device).to(device)
+        model = GIN(args.num_layers, args.num_mlp_layers, train_graphs[0].node_features.shape[1], args.hidden_dim,
+                    num_classes, args.dropout, args.learn_eps, args.graph_pooling_type, args.neighbor_pooling_type,
+                    device).to(device)
 
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
 
@@ -474,7 +487,7 @@ def main():
         for epoch in range(0, args.epochs):
             scheduler.step()
 
-            _ = train_gin(args, model, device, train_graphs, optimizer,  epoch)
+            _ = train_gin(args, model, device, train_graphs, optimizer, epoch)
 
             loss_valid, acc_valid, _ = test_gin(args, model, device, valid_graphs, epoch)
 
@@ -488,14 +501,16 @@ def main():
                 print("test acc: %.4f" % test_acc)
             else:
                 patience += 1
-            
+
             # if patience == 100:
             #     break
 
         print("Train SOLTGIN for tail graphs")
 
-        model = GIN(args.num_layers, args.num_mlp_layers, train_graphs[0].node_features.shape[1], args.hidden_dim, num_classes,
-                    args.dropout, args.learn_eps, args.graph_pooling_type, args.neighbor_pooling_type, device).to(device)
+        model = GIN(args.num_layers, args.num_mlp_layers, train_graphs[0].node_features.shape[1], args.hidden_dim,
+                    num_classes,
+                    args.dropout, args.learn_eps, args.graph_pooling_type, args.neighbor_pooling_type, device).to(
+            device)
         patmem = PatternMemory(args.hidden_dim, args.dm).to(device)
 
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
@@ -525,9 +540,9 @@ def main():
 
             loss_valid, _, _, _, _ = test(args, model, patmem, device,
                                           valid_graphs, epoch)
-            
+
             _, test_acc, test_acc_head, test_acc_medium, test_acc_tail = test(args, model, patmem, device,
-                                                                                     test_graphs, epoch)
+                                                                              test_graphs, epoch)
 
             print("valid loss: %.4f acc: %.4f" % (loss_valid, acc_valid))
             val_losses.append(loss_valid)
@@ -562,13 +577,12 @@ def main():
             # if patience == 100:
             #     break
 
-
-
     loss, acc, duration = tensor(val_losses), tensor(accs), tensor(durations)
     head_acc, med_acc, tail_acc = tensor(head_accs), tensor(med_accs), tensor(tail_accs)
     loss, acc = loss.view(folds, args.epochs), acc.view(folds, args.epochs)
-    head_acc, med_acc, tail_acc = head_acc.view(folds, args.epochs), med_acc.view(folds, args.epochs), tail_acc.view(folds,
-                                                                                                           args.epochs)
+    head_acc, med_acc, tail_acc = head_acc.view(folds, args.epochs), med_acc.view(folds, args.epochs), tail_acc.view(
+        folds,
+        args.epochs)
     loss, argmin = loss.min(dim=1)
     acc = acc[torch.arange(folds, dtype=torch.long), argmin]
     head_acc = head_acc[torch.arange(folds, dtype=torch.long), argmin]
@@ -611,7 +625,7 @@ def main():
                        f"Std Medium Mean: {round(med_acc_std, 4)}, \n"
                        f"Tail Mean: {round(tail_acc_mean, 4)}, \n"
                        f"Std Tail Mean: {round(tail_acc_std, 4)} \n\n"
-                        )
+                       )
 
     # with open("metrics.txt", "a") as txt_file:
     #     txt_file.write(f"Dataset: {args.dataset}, \n"
@@ -629,6 +643,7 @@ def main():
     #                    f"Tail Mean: {round(tail_record.mean().item(), 4)}, \n"
     #                    f"Std Tail Mean: {round(tail_record.std().item(), 4)} \n\n"
     #                    )
+
 
 if __name__ == '__main__':
     main()
