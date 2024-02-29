@@ -262,15 +262,15 @@ def test(args, model, patmem, device, graphs, epoch):
     mask_head = (mask == 0)
     mask_medium = (mask == 1)
     mask_tail = (mask == 2)
-    loss_head = criterion_ce(output[mask_head], labels[mask_head])
+    # loss_head = criterion_ce(output[mask_head], labels[mask_head])
     correct_head = pred[mask_head].eq(labels[mask_head].view_as(
         pred[mask_head])).sum().cpu().item()
     acc_head = correct_head / float(mask_head.sum())
-    loss_medium = criterion_ce(output[mask_medium], labels[mask_medium])
+    # loss_medium = criterion_ce(output[mask_medium], labels[mask_medium])
     correct_medium = pred[mask_medium].eq(labels[mask_medium].view_as(
         pred[mask_medium])).sum().cpu().item()
     acc_medium = correct_medium / float(mask_medium.sum())
-    loss_tail = criterion_ce(output[mask_tail], labels[mask_tail])
+    # loss_tail = criterion_ce(output[mask_tail], labels[mask_tail])
     correct_tail = pred[mask_tail].eq(labels[mask_tail].view_as(
         pred[mask_tail])).sum().cpu().item()
     acc_tail = correct_tail / float(mask_tail.sum())
@@ -589,7 +589,7 @@ def main():
     med_acc = med_acc[torch.arange(folds, dtype=torch.long), argmin]
     tail_acc = tail_acc[torch.arange(folds, dtype=torch.long), argmin]
 
-    loss_mean = loss.mean().item()
+    # loss_mean = loss.mean().item()
     acc_mean = acc.mean().item()
     acc_std = acc.std().item()
     head_acc_mean = head_acc.mean().item()
